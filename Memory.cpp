@@ -53,6 +53,18 @@ void PopArenaMark(arena *Arena) {
 void GlobalPushMark() { PushArenaMark(&GlobalArena); }
 void GlobalPopMark() { PopArenaMark(&GlobalArena); }
 
+void *ArenaAllocateNoZero(arena *Arena, s64 Size) {
+    if(Arena->Used + Size >= Arena->Capacity) {
+        PlatformFatalError("ArenaAllocate(%s, %d): Not enough space", Arena->Name, Size);
+        return 0;
+    }
+    
+    void *Data = (void *)(Arena->Data + Arena->Used);
+    Arena->Used += Size;
+    
+    return Data;
+}
+
 void *_ArenaAllocate(arena *Arena, s64 Size) {
     if(Arena->Used + Size >= Arena->Capacity) {
         PlatformFatalError("ArenaAllocate(%s, %d): Not enough space", Arena->Name, Size);

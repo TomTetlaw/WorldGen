@@ -1,6 +1,35 @@
 #include "Includes.h"
 
-arena FrameArena;
+struct world_map_shader_properties {
+    f32 TileSize;
+    s32 WidthInTiles;
+    s32 HeightInTiles;
+};
+
+void WorldMapMaterialFunction(shader_instance *Shader) {
+    world_map_shader_properties *Properties = (world_map_shader_properties *)Shader->UserData;
+    
+    ShaderSetInt(Shader, "WidthInTiles", Properties->WidthInTiles);
+    ShaderSetInt(Shader, "HeightInTiles", Properties->HeightInTiles);
+    ShaderSetFloat(Shader, "TileSize", Properties->TileSize);
+}
+
+struct game_state {
+    arena FrameArena;
+    
+    texture *WorldMapTexture;
+    u8 *WorldMapColours;
+    
+    texture *RegionMapTexture;
+    u8 *RegionMapColours;
+    
+    u32 WorldMapShaderFile;
+    shader_instance WorldMapShader;
+    shader_instance RegionMapShader;
+    
+    world_data *World;
+    vec2i CameraTilePosition;
+};
 
 enum biome {
     biome_ice,
@@ -41,30 +70,30 @@ u8 PackedColourForBiome(biome Biome) {
 }
 
 struct tile {
-    vec2i TilePosition;
+    vec2i Position;
     u8 Colour;
-    bool Blocking;
     vec4 DebugColour;
 };
 
-#define building_ladder (building_ladder_left | building_ladder_right)
-#define building_ladder_left (1 << 0)
-#define building_ladder_right (1 << 1)
-
-u8 PackTile(tile *Tile) {
-    u8 Out = ((Tile->Colour << 1) & 0x1e) | ((u8)Tile->Blocking ? (u8)1 : (u8)0) & 0x1;
-    return Out;
-}
-
-void UnpackTile(u8 Packed, tile *Tile) {
-    Tile->Colour = (Packed & 0x1e) >> 1;
-    Tile->Blocking = (Packed & 0x1);
-}
+struct region {
+    vec2i Position;
+    u8 Colour;
+    vec4 DebugColour;
+    
+    biome Biome;
+    s32 Width;
+    s32 Height;
+    tile *Tiles;
+};
 
 struct world_gen_data {
     s32 Width;
     s32 Height;
-    f32 TileSize;
+    
+    s32 RegionWidth;
+    s32 RegionHeight;
+    
+    f32 RegionRectSize;
     
     // NOTE(TomTetlaw): Noise paramaters.
     u8 Seed;
@@ -77,20 +106,22 @@ struct world_gen_data {
 struct world_data {
     s32 Width;
     s32 Height;
-    f32 TileSize;
-    tile *Tiles;
+    s32 RegionWidth;
+    s32 RegionHeight;
+    f32 RegionRectSize;
+    region *Regions;
 };
 
-tile *GetTile(world_data *World, vec2i TilePosition) {
-    if(TilePosition.x < 0 || TilePosition.x >= World->Width) return 0;
-    if(TilePosition.y < 0 || TilePosition.y >= World->Height) return 0;
-    return World->Tiles + (TilePosition.x + TilePosition.y*World->Width);
+region *GetRegion(world_data *World, vec2i Position) {
+    if(Position.x < 0 || Position.x >= World->Width) return 0;
+    if(Position.y < 0 || Position.y >= World->Height) return 0;
+    return World->Regions + (Position.x + Position.y*World->Width);
 }
 
-vec2 WorldTexCoord(world_gen_data *GenData, vec2i TilePosition) {
-    vec2 TotalSize = v2(GenData->Width, GenData->Height) * GenData->TileSize;
-    vec2 TexCoord = v2(TilePosition.x, TilePosition.y);
-    TexCoord = TexCoord * v2(GenData->TileSize);
+vec2 WorldTexCoord(world_gen_data *GenData, vec2i Position) {
+    vec2 TotalSize = v2(GenData->Width, GenData->Height) * GenData->RegionRectSize;
+    vec2 TexCoord = v2(Position.x, Position.y);
+    TexCoord = TexCoord * v2(GenData->RegionRectSize);
     TexCoord = TexCoord * v2(1.0f/TotalSize.x, 1.0f/TotalSize.y);
     return TexCoord;
 }
@@ -129,81 +160,130 @@ biome WorldBiome(world_gen_data *GenData, vec2 TexCoord, f32 *OutValue) {
     return biome_ice;
 }
 
+void GenerateIceRegion(world_gen_data *GenData, world_data *World, region *Region, arena *Arena) {
+    for(s32 y = 0; y < Region->Height; y++) {
+        for(s32 x = 0; x < Region->Width; x++) {
+            tile *Tile = Region->Tiles + (x + y*Region->Width);
+            Tile->Colour = Region->Colour;
+        }
+    }
+}
+
+void GenerateTundraRegion(world_gen_data *GenData, world_data *World, region *Region, arena *Arena) {
+    for(s32 y = 0; y < Region->Height; y++) {
+        for(s32 x = 0; x < Region->Width; x++) {
+            tile *Tile = Region->Tiles + (x + y*Region->Width);
+            Tile->Colour = Region->Colour;
+        }
+    }
+}
+
+void GenerateForestRegion(world_gen_data *GenData, world_data *World, region *Region, arena *Arena) {
+    for(s32 y = 0; y < Region->Height; y++) {
+        for(s32 x = 0; x < Region->Width; x++) {
+            tile *Tile = Region->Tiles + (x + y*Region->Width);
+            Tile->Colour = Region->Colour;
+        }
+    }
+}
+
+void GenerateGrasslandRegion(world_gen_data *GenData, world_data *World, region *Region, arena *Arena) {
+    for(s32 y = 0; y < Region->Height; y++) {
+        for(s32 x = 0; x < Region->Width; x++) {
+            tile *Tile = Region->Tiles + (x + y*Region->Width);
+            Tile->Colour = Region->Colour;
+        }
+    }
+}
+
+void GenerateSaharaRegion(world_gen_data *GenData, world_data *World, region *Region, arena *Arena) {
+    for(s32 y = 0; y < Region->Height; y++) {
+        for(s32 x = 0; x < Region->Width; x++) {
+            tile *Tile = Region->Tiles + (x + y*Region->Width);
+            Tile->Colour = Region->Colour;
+        }
+    }
+}
+
+void GenerateDesertRegion(world_gen_data *GenData, world_data *World, region *Region, arena *Arena) {
+    for(s32 y = 0; y < Region->Height; y++) {
+        for(s32 x = 0; x < Region->Width; x++) {
+            tile *Tile = Region->Tiles + (x + y*Region->Width);
+            Tile->Colour = Region->Colour;
+        }
+    }
+}
+
+void GenerateWaterRegion(world_gen_data *GenData, world_data *World, region *Region, arena *Arena) {
+    for(s32 y = 0; y < Region->Height; y++) {
+        for(s32 x = 0; x < Region->Width; x++) {
+            tile *Tile = Region->Tiles + (x + y*Region->Width);
+            Tile->Colour = Region->Colour;
+        }
+    }
+}
+
+void GenerateRegion(world_gen_data *GenData, world_data *World, region *Region, arena *Arena) {
+    switch(Region->Biome) {
+		case biome_ice: 
+        GenerateIceRegion(GenData, World, Region, Arena);
+        return;
+        
+		case biome_tundra: 
+        GenerateTundraRegion(GenData, World, Region, Arena); 
+        return;
+        
+		case biome_forest: 
+        GenerateForestRegion(GenData, World, Region, Arena); 
+        return;
+        
+		case biome_grassland: 
+        GenerateGrasslandRegion(GenData, World, Region, Arena); 
+        return;
+        
+		case biome_sahara: 
+        GenerateSaharaRegion(GenData, World, Region, Arena); 
+        return;
+        
+		case biome_desert: 
+        GenerateDesertRegion(GenData, World, Region, Arena); 
+        return;
+        
+		case biome_water: 
+        GenerateWaterRegion(GenData, World, Region, Arena); 
+        return;
+	}
+}
+
 void GenerateWorld(world_gen_data *GenData, world_data *World, arena *Arena) {
-    tile *Tiles = (tile *)ArenaAllocate(Arena, sizeof(tile) * GenData->Width * GenData->Height);
+    region *Regions = (region *)ArenaAllocate(Arena, sizeof(region) * GenData->Width * GenData->Height);
     
     for(s32 y = 0; y < GenData->Height; y++) {
         for(s32 x = 0; x < GenData->Width; x++) {
-            tile *Tile = Tiles + (x + y*GenData->Width);
-            Tile->TilePosition = v2i(x, y);
+            region *Region = Regions + (x + y*GenData->Width);
+            Region->Position = v2i(x, y);
             
-            vec2 TexCoord = WorldTexCoord(GenData, Tile->TilePosition);
+            vec2 TexCoord = WorldTexCoord(GenData, Region->Position);
             
             f32 Value;
             biome Biome = WorldBiome(GenData, TexCoord, &Value);
-            Tile->Colour = PackedColourForBiome(Biome);
-            Tile->DebugColour = v4(v3(Value), 1.0f);
+            Region->Colour = PackedColourForBiome(Biome);
+            Region->DebugColour = v4(v3(Value), 1.0f);
+            Region->Biome = Biome;
+            
+            Region->Width = GenData->RegionWidth;
+            Region->Height = GenData->RegionHeight;
+            Region->Tiles = (tile *)ArenaAllocate(Arena, sizeof(tile)*GenData->RegionWidth*GenData->RegionHeight);
+            GenerateRegion(GenData, World, Region, Arena);
         }
     }
     
-    World->Tiles = Tiles;
-    World->TileSize = GenData->TileSize;
+    World->Regions = Regions;
+    World->RegionRectSize = GenData->RegionRectSize;
     World->Width = GenData->Width;
     World->Height = GenData->Height;
-}
-
-struct world_file_header {
-    s32 Width;
-    s32 Height;
-    f32 TileSize;
-};
-
-void WriteWorld(world_data *World, s8 *Path, arena *Arena) {
-    PushArenaMark(Arena);
-    
-    s32 Size = sizeof(world_file_header) + World->Width*World->Height;
-    u8 *Bytes = (u8 *)ArenaAllocate(Arena, Size);
-    
-    world_file_header *Header = (world_file_header *)Bytes;
-    Header->Width = World->Width;
-    Header->Height = World->Height;
-    Header->TileSize = World->TileSize;
-    
-    for(s32 y = 0; y < World->Height; y++) {
-        for(s32 x = 0; x < World->Width; x++) {
-            u8 *Byte = Bytes + (x + y*World->Width) + sizeof(world_file_header);
-            *Byte = PackTile(GetTile(World, v2i(x, y)));
-        }
-    }
-    
-    PlatformWriteFile(Path, Bytes, Size);
-    
-    PopArenaMark(Arena);
-}
-
-void ReadWorld(world_data *World, s8 *Path, arena *Arena) {
-    file File = PlatformLoadFile(Path, false, Arena);
-    if(!File.Data) return;
-    
-    u8 *Bytes = (u8 *)File.Data;
-    world_file_header *Header = (world_file_header *)Bytes;
-    
-    tile *Tiles = (tile *)ArenaAllocate(Arena, sizeof(tile) * Header->Width * Header->Height);
-    
-    for(s32 y = 0; y < Header->Height; y++) {
-        for(s32 x = 0; x < Header->Width; x++) {
-            u8 *Byte = Bytes + (x + y*Header->Width) + sizeof(world_file_header);
-            tile *Tile = Tiles + (x + y*Header->Width);
-            UnpackTile(*Byte, Tile);
-            
-            Tile->TilePosition = v2i(x, y);
-        }
-    }
-    
-    World->TileSize = Header->TileSize;
-    World->Width = Header->Width;
-    World->Height = Header->Height;
-    World->Tiles = Tiles;
+    World->RegionWidth = GenData->RegionWidth;
+    World->RegionHeight = GenData->RegionHeight;
 }
 
 void InitGame(platform *Platform) {
@@ -211,12 +291,17 @@ void InitGame(platform *Platform) {
     InitRenderer();
     InitEntitySystem();
     
-    MakeSubArena(&FrameArena, &GlobalArena, "FrameArena", MB(128));
+    Platform->UserData = ArenaAllocate(&GlobalArena, sizeof(game_state));
+    game_state *GameState = (game_state *)Platform->UserData;
+    
+    MakeSubArena(&GameState->FrameArena, &GlobalArena, "FrameArena", MB(512));
     
     world_gen_data GenData;
     GenData.Width = 256;
     GenData.Height = 256;
-    GenData.TileSize = 8.0f;
+    GenData.RegionWidth = 16;
+    GenData.RegionHeight = 16;
+    GenData.RegionRectSize = 8.0f;
     GenData.NoiseScale = 10.0f;
     GenData.Lacunarity = 2.0f;
     GenData.Gain = 0.5f;
@@ -224,13 +309,28 @@ void InitGame(platform *Platform) {
     
     static world_data World;
     GenerateWorld(&GenData, &World, &GlobalArena);
+    GameState->World = &World;
     
-    WriteWorld(&World, "Worlds/Test.world", &GlobalArena);
+    s32 WorldMapSize = 64*64;
+    s32 RegionMapSize = World.RegionWidth * World.RegionHeight;
+    GameState->WorldMapColours = (u8 *)ArenaAllocate(&GlobalArena, WorldMapSize);
+    GameState->RegionMapColours = (u8 *)ArenaAllocate(&GlobalArena, RegionMapSize);
+    GameState->WorldMapTexture = CreateBufferTexture("WorldMap", GameState->WorldMapColours, WorldMapSize);
+    GameState->RegionMapTexture = CreateBufferTexture("RegionMap", GameState->RegionMapColours, RegionMapSize);
     
-    Platform->UserData = ArenaAllocate(&GlobalArena, sizeof(world_data));
-    ReadWorld((world_data *)Platform->UserData, "Worlds/Test.world", &GlobalArena);
+    GameState->WorldMapShaderFile = LoadShader("Shaders/RegionMap.vs", "Shaders/RegionMap.fs");
     
-    Platform->UserData = (void *)&World;
+    static world_map_shader_properties WorldMapShaderProperties;
+    WorldMapShaderProperties.WidthInTiles = 64;
+    WorldMapShaderProperties.HeightInTiles = 64;
+    WorldMapShaderProperties.TileSize = 8.0f;
+    CreateShaderInstance(&GameState->WorldMapShader, WorldMapMaterialFunction, &WorldMapShaderProperties, GameState->WorldMapShaderFile);
+    
+    static world_map_shader_properties RegionMapShaderProperties;
+    RegionMapShaderProperties.WidthInTiles = GenData.RegionWidth;
+    RegionMapShaderProperties.HeightInTiles = GenData.RegionHeight;
+    RegionMapShaderProperties.TileSize = 8.0f;
+    CreateShaderInstance(&GameState->RegionMapShader, WorldMapMaterialFunction, &RegionMapShaderProperties, GameState->WorldMapShaderFile);
 }
 
 void TickGame(platform *Platform) {
@@ -239,25 +339,57 @@ void TickGame(platform *Platform) {
     
     TracyBegin(PushQuads);
     
-    world_data *World = (world_data *)Platform->UserData;
-    renderer_quad *Quads = (renderer_quad *)ArenaAllocate(&FrameArena, sizeof(renderer_quad) * World->Width * World->Height);
+    game_state *GameState = (game_state *)Platform->UserData;
+    world_data *World = GameState->World;
     
-    for(s32 y = 0; y < World->Height; y++) {
-        for(s32 x = 0; x < World->Width; x++) {
-            tile *Tile = GetTile(World, v2i(x, y));
-            
-            renderer_quad *Quad = Quads + (x + y*World->Width);
-            Quad->Position = v2(100.0f) + v2(x, y)*World->TileSize*0.25f;
-            Quad->Size = v2(World->TileSize)*0.25f;
-            
-            if(ShowDebug) Quad->Colour = Tile->DebugColour;
-            else Quad->Colour = UnpackColour(Tile->Colour);
+    s32 RenderSize = 64;
+    
+    for(s32 y = 0; y < RenderSize; y++) {
+        for(s32 x = 0; x < RenderSize; x++) {
+            region *Region = GetRegion(World, GameState->CameraTilePosition + v2i(x, y));
+            if(!Region) continue;
+            GameState->WorldMapColours[x + y*RenderSize] = Region->Colour;
         }
     }
     
-    PushQuads(Quads, World->Width * World->Height);
+    UpdateBufferTexture(GameState->WorldMapTexture, GameState->WorldMapColours, RenderSize*RenderSize);
+    renderer_quad Quad;
+    Quad.Position = v2(100.0f);
+    Quad.Size = v2(World->RegionRectSize * RenderSize);
+    Quad.Shader = &GameState->WorldMapShader;
+    PushTexture(&Quad, GameState->WorldMapTexture);
+    
+    region *CurrentRegion = GetRegion(World, GameState->CameraTilePosition);
+    if(CurrentRegion) {
+        for(s32 y = 0; y < World->RegionHeight; y++) {
+            for(s32 x = 0; x < World->RegionWidth; x++) {
+                tile *Tile = CurrentRegion->Tiles + (x + y*World->RegionWidth);
+                GameState->RegionMapColours[x + y*World->RegionWidth] = Tile->Colour;
+            }
+        }
+    }
+    
+    s32 RegionMapSize = World->RegionWidth * World->RegionHeight;
+    UpdateBufferTexture(GameState->RegionMapTexture, GameState->RegionMapColours, RegionMapSize);
+    Quad.Position = v2(800.0f, 100.0f);
+    Quad.Size = v2(World->RegionRectSize)*v2(World->RegionWidth,World->RegionHeight);
+    Quad.Shader = &GameState->RegionMapShader;
+    PushTexture(&Quad, GameState->RegionMapTexture);
     
     TracyEnd(PushQuads);
+    
+    if(Platform->KeyPressed[key_w]) GameState->CameraTilePosition.y -= 1;
+    if(Platform->KeyPressed[key_a]) GameState->CameraTilePosition.x -= 1;
+    if(Platform->KeyPressed[key_s]) GameState->CameraTilePosition.y += 1;
+    if(Platform->KeyPressed[key_d]) GameState->CameraTilePosition.x += 1;
+    if(GameState->CameraTilePosition.x < 0) 
+        GameState->CameraTilePosition.x = World->Width - 1;
+    if(GameState->CameraTilePosition.x >= World->Width) 
+        GameState->CameraTilePosition.x = 0;
+    if(GameState->CameraTilePosition.y < 0) 
+        GameState->CameraTilePosition.y = World->Height - 1;
+    if(GameState->CameraTilePosition.y >= World->Height) 
+        GameState->CameraTilePosition.y = 0;
     
     UpdateAllEntities(Platform, World);
     
@@ -265,5 +397,5 @@ void TickGame(platform *Platform) {
     RenderAllEntities(World);
     RendererEndFrame();
     
-    FrameArena.Used = 0;
+    GameState->FrameArena.Used = 0;
 }

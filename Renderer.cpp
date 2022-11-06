@@ -17,7 +17,7 @@ struct render_command {
     s32 VertexCount;
     index *Indices;
     vertex *Vertices;
-    u32 Shader;
+    shader_instance *Shader;
     texture *Texture;
 };
 
@@ -34,8 +34,8 @@ struct renderer_cache {
     u32 IndexBuffer;
     u32 VertexArray;
     
-    u32 Basic;
-    u32 Textured;
+    shader_instance Basic;
+    shader_instance Textured;
 };
 
 renderer_cache Cache;
@@ -61,7 +61,7 @@ render_command *GetRenderCommand(s32 IndexCount, s32 VertexCount) {
 void InitRenderer() {
     Cache.MaxIndices = 500000;
     Cache.MaxVertices = 500000;
-    Cache.MaxRenderCommands = 500000;
+    Cache.MaxRenderCommands = 50000;
     
     MakeSubArena(&Cache.Indices, &RendererArena, "Indices", sizeof(index) * Cache.MaxIndices);
     MakeSubArena(&Cache.Vertices, &RendererArena, "Vertices", sizeof(vertex) * Cache.MaxVertices);
@@ -87,8 +87,10 @@ void InitRenderer() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_TRUE, sizeof(vertex), (const void *)offsetof(vertex, TexCoord));
     glVertexAttribPointer(2, 4, GL_FLOAT, GL_TRUE, sizeof(vertex), (const void *)offsetof(vertex, Colour));
     
-    Cache.Basic = LoadShader("Shaders/Basic.vs", "Shaders/Basic.fs");
-    Cache.Textured = LoadShader("Shaders/Textured.vs", "Shaders/Textured.fs");
+    u32 BasicShader = LoadShader("Shaders/Basic.vs", "Shaders/Basic.fs");
+    u32 TexturedShader = LoadShader("Shaders/Textured.vs", "Shaders/Textured.fs");
+    CreateShaderInstance(&Cache.Basic, 0, 0, BasicShader);
+    CreateShaderInstance(&Cache.Textured, 0, 0, TexturedShader);
     
     PlatformDeleteFile("OpenGL.log");
     
@@ -122,7 +124,7 @@ void PushLine(renderer_line *Line) {
     Copy(Command->Vertices, Vertices, sizeof(vertex) * 4);
     Copy(Command->Indices, Indices, sizeof(index) * 6);
     
-    Command->Shader = Cache.Basic;
+    Command->Shader = &Cache.Basic;
 }
 
 void PushQuad(renderer_quad *Quad) {
@@ -141,8 +143,8 @@ void PushQuad(renderer_quad *Quad) {
     Copy(Command->Vertices, Vertices, sizeof(vertex) * 4);
     Copy(Command->Indices, Indices, sizeof(index) * 6);
     
-    if(Quad->Shader != -1) Command->Shader = Quad->Shader;
-    else Command->Shader = Cache.Basic;
+    if(Quad->Shader) Command->Shader = Quad->Shader;
+    else Command->Shader = &Cache.Basic;
 }
 
 void PushQuads(renderer_quad *Quads, s32 QuadCount) {
@@ -160,33 +162,25 @@ void PushQuads(renderer_quad *Quads, s32 QuadCount) {
     for(s32 i = 0; i < QuadCount; i++) {
         renderer_quad *Quad = Quads + i;
         
-        Vertices[Vert + 0].Position = Quad->Position + v2(0.f, 0.f);
-        Vertices[Vert + 1].Position = Quad->Position + v2(Quad->Size.x, 0.f);
-        Vertices[Vert + 2].Position = Quad->Position + v2(Quad->Size.x, Quad->Size.y);
-        Vertices[Vert + 3].Position = Quad->Position + v2(0.f, Quad->Size.y);
+        vertex QuadVertices[4] = {
+            { Quad->Position + v2(0.f, 0.f),                   v2(0.f, 0.f), Quad->Colour },
+            { Quad->Position + v2(Quad->Size.x, 0.f),          v2(1.f, 0.f), Quad->Colour },
+            { Quad->Position + v2(Quad->Size.x, Quad->Size.y), v2(1.f, 1.f), Quad->Colour },
+            { Quad->Position + v2(0.f, Quad->Size.y),          v2(0.f, 1.f), Quad->Colour },
+        };
         
-        Vertices[Vert + 0].TexCoord = v2(0.0f, 0.0f);
-        Vertices[Vert + 1].TexCoord = v2(1.0f, 0.0f);
-        Vertices[Vert + 2].TexCoord = v2(1.0f, 1.0f);
-        Vertices[Vert + 3].TexCoord = v2(0.0f, 1.0f);
+        index QuadIndices[6] = {
+            Vert + 0u, Vert + 1u, Vert + 2u, Vert + 3u, Vert + 0u, Vert + 2u
+        };
         
-        Vertices[Vert + 0].Colour = Quad->Colour;
-        Vertices[Vert + 1].Colour = Quad->Colour;
-        Vertices[Vert + 2].Colour = Quad->Colour;
-        Vertices[Vert + 3].Colour = Quad->Colour;
-        
-        Indices[Index + 0] = Vert + 0;
-        Indices[Index + 1] = Vert + 1;
-        Indices[Index + 2] = Vert + 2;
-        Indices[Index + 3] = Vert + 3;
-        Indices[Index + 4] = Vert + 0;
-        Indices[Index + 5] = Vert + 2;
+        Copy(&Vertices[Vert], QuadVertices, sizeof(vertex) * 4);
+        Copy(&Indices[Index], QuadIndices, sizeof(index) * 6);
         
         Vert += 4;
         Index += 6;
     }
     
-    Command->Shader = Cache.Basic;
+    Command->Shader = &Cache.Basic;
 }
 
 void PushTexture(renderer_quad *Quad, texture *Texture) {
@@ -205,8 +199,8 @@ void PushTexture(renderer_quad *Quad, texture *Texture) {
     Copy(Command->Vertices, Vertices, sizeof(vertex) * 4);
     Copy(Command->Indices, Indices, sizeof(index) * 6);
     
-    if(Quad->Shader != -1) Command->Shader = Quad->Shader;
-    else Command->Shader = Cache.Textured;
+    if(Quad->Shader) Command->Shader = Quad->Shader;
+    else Command->Shader = &Cache.Textured;
     Command->Texture = Texture;
 }
 
@@ -226,16 +220,21 @@ void RendererEndFrame() {
     for(s32 i = 0; i < RenderCommandCount; i++) {
         render_command *Command = (render_command *)Cache.RenderCommands.Data + i;
         
-        if(LastProgram != Command->Shader) {
-            glUseProgram(Command->Shader);
-            LastProgram = Command->Shader;
+        if(LastProgram != Command->Shader->ID) {
+            glUseProgram(Command->Shader->ID);
+            LastProgram = Command->Shader->ID;
         }
+        
         ShaderSetMatrix(Command->Shader, "OrthoMatrix", CreateOrthoMatrix(0.f, 1366.f, 768.f, 0.f));
+        
+        if(Command->Shader->MaterialFunction) {
+            Command->Shader->MaterialFunction(Command->Shader);
+        }
         
         if(Command->Texture) {
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, Command->Texture->ID);
-            u32 Location = glGetUniformLocation(Command->Shader, "Texture0");
+            glBindTexture(Command->Texture->Target, Command->Texture->ID);
+            u32 Location = glGetUniformLocation(Command->Shader->ID, "Texture0");
             glUniform1i(Location, 0);
         }
         
@@ -251,4 +250,9 @@ void RendererEndFrame() {
 void DebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
     s8 *String = Format("%s\n", message);
     PlatformAppendFile("OpenGL.log", String, StringLength(String));
+#ifdef WINDOWS_BUILD
+#ifdef DEBUG_BUILD
+    OutputDebugString(String);
+#endif
+#endif
 }

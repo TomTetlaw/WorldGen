@@ -24,6 +24,7 @@ glGetUniformLocation
 glUniformMatrix4fv
 glActiveTexture
 glUniform1i
+glUniform1f
 glDebugMessageCallback
 glDebugMessageControl
 glGenerateMipmap
@@ -33,3 +34,4 @@ glGetQueryiv
 glGetQueryObjectiv
 glGetQueryObjectui64v
 glQueryCounter
+glTexBuffer

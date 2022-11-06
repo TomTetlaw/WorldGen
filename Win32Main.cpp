@@ -55,8 +55,8 @@ INT CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
         PlatformFatalError("Failed to register window class: %s", GetWindowsErrorMessage());
     }
     
-    s32 WindowWidth = 1900;
-    s32 WindowHeight = 1000;
+    s32 WindowWidth = 1366;
+    s32 WindowHeight = 768;
     
     s32 ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     s32 ScreenHeight = GetSystemMetrics(SM_CYSCREEN);

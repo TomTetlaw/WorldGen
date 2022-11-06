@@ -1,11 +1,13 @@
 #ifndef _RENDERER_H
 #define _RENDERER_H
 
+struct shader_instance;
+
 struct renderer_quad {
     vec2 Position;
     vec2 Size;
     colour Colour;
-    s32 Shader;
+    shader_instance *Shader;
 };
 
 struct renderer_line {

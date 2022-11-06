@@ -36,6 +36,7 @@ void GlobalPopMark();
 #define ArenaAllocate(Arena, Size) _ArenaAllocate(Arena, Size)
 #endif
 
+void *ArenaAllocateNoZero(arena *Arena, s64 Size);
 void *_ArenaAllocate(arena *Arena, s64 Size);
 void *_ArenaAllocateTracked(arena *Arena, s64 Size, s8 *File, s32 Line);
 

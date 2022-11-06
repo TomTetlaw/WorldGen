@@ -34,7 +34,7 @@ u32 LoadShader(s8 *VertexFile, s8 *FragmentFile) {
         glGetShaderInfoLog(FragmentShader, 1024, 0, FragmentLog);
         glGetProgramInfoLog(Program, 1024, 0, ProgramLog);
         
-        PlatformFatalError("Failed to compile shader: %s %s %s", VertexLog, FragmentLog, ProgramLog);
+        PlatformFatalError("Failed to compile shader %s %s:\n VertexLog %s\n FragmentLog %s\n ProgramLog %s", VertexFile, FragmentFile, VertexLog, FragmentLog, ProgramLog);
     }
     
     glDetachShader(Program, VertexShader);
@@ -43,7 +43,23 @@ u32 LoadShader(s8 *VertexFile, s8 *FragmentFile) {
     return Program;
 }
 
-void ShaderSetMatrix(u32 Shader, s8 *Name, mat4 Matrix) {
-    u32 Location = glGetUniformLocation(Shader, Name);
+void CreateShaderInstance(shader_instance *Instance, material_func Func, void *UserData, u32 Shader) {
+    Instance->MaterialFunction = Func;
+    Instance->UserData = UserData;
+    Instance->ID = Shader;
+}
+
+void ShaderSetMatrix(shader_instance *Shader, s8 *Name, mat4 Matrix) {
+    u32 Location = glGetUniformLocation(Shader->ID, Name);
     glUniformMatrix4fv(Location, 1, GL_FALSE, Matrix.e);
+}
+
+void ShaderSetInt(shader_instance *Shader, s8 *Name, s32 Value) {
+    u32 Location = glGetUniformLocation(Shader->ID, Name);
+    glUniform1i(Location, Value);
+}
+
+void ShaderSetFloat(shader_instance *Shader, s8 *Name, f32 Value) {
+    u32 Location = glGetUniformLocation(Shader->ID, Name);
+    glUniform1f(Location, Value);
 }

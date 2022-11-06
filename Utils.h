@@ -17,6 +17,7 @@ s32 StringLength(s8 *String);
 bool StringCompare(s8 *A, s8 *B);
 void Set(void *Dest, s32 Value, s64 Size);
 void Copy(void *Dest, void *Source, s64 Size);
+void FastCopy(void *Dest, void *Source, s64 Size);
 void Zero(void *Dest, s64 Size);
 s8 *Format(s8 *Format, ...);
 

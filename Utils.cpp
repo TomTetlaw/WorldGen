@@ -33,6 +33,19 @@ void Zero(void *Dest, s64 Size) {
     }
 }
 
+void FastCopy(void *Dest, void *Source, s64 Size) {
+    __m256i *Ptr = (__m256i *)Dest;
+    __m256i *Src = (__m256i *)Source;
+    s32 Num = Size / 32;
+    s32 Remainder = Size % 32;
+    while(Num--) _mm256_store_si256(Ptr++, *Src++);
+    s32 *Rest = (s32 *)Ptr;
+    s32 *RestSrc = (s32 *)Src;
+    while(Remainder--) {
+        *Rest++ = *RestSrc++;
+    }
+}
+
 void Copy(void *Dest, void *Source, s64 Size) {
     s8 *SourcePlace = (s8 *)Source;
     s8 *DestPlace = (s8 *)Dest;

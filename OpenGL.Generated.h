@@ -31,6 +31,8 @@ extern PFNGLLINKPROGRAMPROC glLinkProgram;
 extern PFNGLOBJECTLABELPROC glObjectLabel;
 extern PFNGLQUERYCOUNTERPROC glQueryCounter;
 extern PFNGLSHADERSOURCEPROC glShaderSource;
+extern PFNGLTEXBUFFERPROC glTexBuffer;
+extern PFNGLUNIFORM1FPROC glUniform1f;
 extern PFNGLUNIFORM1IPROC glUniform1i;
 extern PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv;
 extern PFNGLUSEPROGRAMPROC glUseProgram;

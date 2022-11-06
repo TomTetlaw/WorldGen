@@ -83,10 +83,10 @@ void RenderAllEntities(world_data *World) {
         }
         
         renderer_quad Quad;
-        Quad.Position = v2(Entity->TilePosition * v2i(World->TileSize));
-        Quad.Size = v2(World->TileSize);
+        Quad.Position = v2(Entity->TilePosition * v2i(World->RegionRectSize));
+        Quad.Size = v2(World->RegionRectSize);
         Quad.Colour = Entity->Colour;
-        Quad.Shader = -1;
+        Quad.Shader = 0;
         
         if(Entity->Texture) PushTexture(&Quad, Entity->Texture);
         else PushQuad(&Quad);

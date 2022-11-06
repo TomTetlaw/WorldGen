@@ -30,6 +30,8 @@ PFNGLLINKPROGRAMPROC glLinkProgram = 0;
 PFNGLOBJECTLABELPROC glObjectLabel = 0;
 PFNGLQUERYCOUNTERPROC glQueryCounter = 0;
 PFNGLSHADERSOURCEPROC glShaderSource = 0;
+PFNGLTEXBUFFERPROC glTexBuffer = 0;
+PFNGLUNIFORM1FPROC glUniform1f = 0;
 PFNGLUNIFORM1IPROC glUniform1i = 0;
 PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = 0;
 PFNGLUSEPROGRAMPROC glUseProgram = 0;
@@ -66,6 +68,8 @@ void LoadOpenGLFunctions() {
 	if(!(glObjectLabel = (PFNGLOBJECTLABELPROC)wglGetProcAddress("glObjectLabel"))) PlatformFatalError("Failed to load OpenGL function glObjectLabel!");
 	if(!(glQueryCounter = (PFNGLQUERYCOUNTERPROC)wglGetProcAddress("glQueryCounter"))) PlatformFatalError("Failed to load OpenGL function glQueryCounter!");
 	if(!(glShaderSource = (PFNGLSHADERSOURCEPROC)wglGetProcAddress("glShaderSource"))) PlatformFatalError("Failed to load OpenGL function glShaderSource!");
+	if(!(glTexBuffer = (PFNGLTEXBUFFERPROC)wglGetProcAddress("glTexBuffer"))) PlatformFatalError("Failed to load OpenGL function glTexBuffer!");
+	if(!(glUniform1f = (PFNGLUNIFORM1FPROC)wglGetProcAddress("glUniform1f"))) PlatformFatalError("Failed to load OpenGL function glUniform1f!");
 	if(!(glUniform1i = (PFNGLUNIFORM1IPROC)wglGetProcAddress("glUniform1i"))) PlatformFatalError("Failed to load OpenGL function glUniform1i!");
 	if(!(glUniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)wglGetProcAddress("glUniformMatrix4fv"))) PlatformFatalError("Failed to load OpenGL function glUniformMatrix4fv!");
 	if(!(glUseProgram = (PFNGLUSEPROGRAMPROC)wglGetProcAddress("glUseProgram"))) PlatformFatalError("Failed to load OpenGL function glUseProgram!");
